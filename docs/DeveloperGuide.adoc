@@ -1,4 +1,4 @@
-= AddressBook Level 4 - Developer Guide
+= Rubrika - Developer Guide
 :toc:
 :toc-title:
 :toc-placement: preamble
@@ -10,9 +10,9 @@ ifdef::env-github[]
 :note-caption: :information_source:
 endif::[]
 ifdef::env-github,env-browser[:outfilesuffix: .adoc]
-:repoURL: https://github.com/se-edu/addressbook-level4/tree/master
+:repoURL: https://github.com/CS2103AUG2017-W15-B1/Main
 
-By: `Team SE-EDU`      Since: `Jun 2016`      Licence: `MIT`
+By: `W15-B1`      Since: `Jun 2016`      Licence: `MIT`
 
 == Setting up
 
@@ -344,7 +344,70 @@ image::UndoRedoActivityDiagram.png[width="200"]
 **Pros:** We do not need to maintain a separate stack, and just reuse what is already in the codebase. +
 **Cons:** Requires dealing with commands that have already been undone: We must remember to skip these commands. Violates Single Responsibility Principle and Separation of Concerns as `HistoryManager` now needs to do two different things. +
 // end::undoredo[]
+// tag::autocomplete[]
+=== Autocomplete
 
+The autocomplete feature searches through all command words, and looks for matches based on incomplete user input in the command box when autocomplete key is used.
+
+At the moment Autocomplete feature latches itself onto Logic component, for three reasons.
+Firstly, since Autocomplete is applied to commands mainly which all belongs under Logic, Autocomplete seems to be a better fit together with them.
+Secondly, Autocomplete itself does not model any personal data (doesn't belong under Model), nor presents itself as a separate UI component (not under UI either), and does nothing on the I/O system (nothing to do with storage).
+Thirdly, Autocomplete also has a parser, like commands, and thus behaves like an address book Logic.
+Therefore Autocomplete seems to be best fit in Logic component.
+
+The following sequence diagram shows where autocomplete possibilities are evaluated, stored, and subsequently used to help the user with command line input:
+image::autocomplete.png[width="800"]
+
+AutocompleteCommandParser takes in an incomplete user command, match it with a list of command words currently supported in the application, and parses back the corresponding command skeleton for the user to fill in.
+
+In order to improve flexibility for future command's autocomplete functionality,
+you will have to specify the appropriate format of autocompleted command under `COMMAND_USAGE` constant in every command.
+
+Some commands that take in just a single argument (usually a numerical index), can simply autocomplete to the command word itself with a space behind:
+[source,java]
+----
+public class DeleteCommand extends UndoableCommand {
+	public static final String COMMAND_WORD = "delete";
+	public static final String COMMAND_USAGE = COMMAND_WORD + " ";
+}
+----
+
+Others may be a bit more complicated, and require several arguments from the user. A more complex command skeleton may be required in this case:
+[source,java]
+----
+public class AddCommand extends UndoableCommand {
+	public static final String COMMAND_WORD = "add";
+	public static final String COMMAND_USAGE = COMMAND_WORD + " "
+            + PREFIX_NAME + "<NAME> "
+            + PREFIX_PHONE + "<PHONE> "
+            + PREFIX_EMAIL + "<EMAIL> "
+            + PREFIX_ADDRESS + "<ADDRESS> "
+            + PREFIX_TAG + "[TAG]...";
+}
+----
+
+At the moment command skeletons are hardcoded and every command can only have one command skeleton, based on implementation in AutoCompleteCommandParser.java.
+
+==== Design Considerations
+
+**Aspect:** Command skeleton for each command +
+**Alternative 1 (current choice):** Support only one command skeleton for every command +
+**Pros:** Easy to track and search for parsing in AutoCompleteCommandParser. +
+**Cons:** Less flexibility and possible patterns for some commands. (e.g. `edit` command) +
+**Alternative 2:** Able to support multiple command skeletons for every command +
+**Pros:** Opens up possibility for some commands to produce different command skeletons based on user needs. +
+**Cons:** Hard to keep track for parsing and extra overhead required to flatten the multiple command skeletons in each command class.
+
+---
+
+**Aspect:** Maintained support for command alias +
+**Alternative 1 (current choice):** No longer support command alias +
+**Pros:** Only need one extra constant in each command, cleaner code in the long run to drop support for less useful or similar features. +
+**Cons:** Changes will have to be made again to commands that were done or are still under development. +
+**Alternative 2:** Continue to support command alias +
+**Pros:** Easier to just add another constant on top of current `COMMAND_ALIAS` constant. +
+**Cons:** Code gets messy in the long term if old features are not depreciated and removed, more constants to declare for every subsequent command added.
+// end::autocomplete[]
 === Logging
 
 We are using `java.util.logging` package for logging. The `LogsCenter` class is used to manage the logging levels and logging destinations.
@@ -363,6 +426,60 @@ We are using `java.util.logging` package for logging. The `LogsCenter` class is 
 === Configuration
 
 Certain properties of the application can be controlled (e.g App name, logging level) through the configuration file (default: `config.json`).
+
+=== RemoveTag Function
+
+The remove tag function is done by calling a `removetag` function which resides in the `ModelManager` class. Currently it supports removing the tag from every individual of the addressbook as well as removing a specific tag from a specified person shown on the list.
+
+If no `INDEX` is given to the Remove Tag command, the remove tag command will run the following code during execution.
+----
+    @Override
+    public void removeTag(Tag tag) throws PersonNotFoundException, DuplicatePersonException {
+        ObservableList<ReadOnlyPerson> list = addressBook.getPersonList();
+
+        for (int i = 0; i < list.size(); i++) {
+            ReadOnlyPerson person = list.get(i);
+            Person newPerson = new Person(person);
+            Set<Tag> tagList = newPerson.getTags();
+            tagList = new HashSet<Tag>(tagList);
+            tagList.remove(tag);
+
+            newPerson.setTags(tagList);
+            addressBook.updatePerson(person, newPerson);
+        }
+        indicateAddressBookChanged();
+    }
+----
+Here we obtained the list of `Person` from the AddressBook directly
+
+If a `INDEX` is given, the remove tag command removes the given tag from the specified INDEX by calling the function during execution.
+
+----
+    @Override
+    public void removeTag(Index index, Tag tag) throws PersonNotFoundException, DuplicatePersonException {
+        List<ReadOnlyPerson> list = getFilteredPersonList();
+        ReadOnlyPerson person = list.get(index.getZeroBased());
+        Person newPerson = new Person(person);
+        Set<Tag> tagList = newPerson.getTags();
+        tagList = new HashSet<>(tagList);
+        tagList.remove(tag);
+
+        newPerson.setTags(tagList);
+        addressBook.updatePerson(person, newPerson);
+    }
+----
+For removing tags from a specified Index we use the `getFilteredPersonList` so that the `INDEX` can correspond to the `INDEX` in the list hat is shown to the user.
+
+[NOTE]
+If more than one tag is given or if `INDEX` out of the range of the shown list is given, `ParseException` will be thrown before execution of the function.
+
+==== Design Considerations
+
+Aspect: Which tags to remove when removing all tags. +
+Alternative 1 (current): Remove all tags from the addressbook regardless of current view. +
+Alternative 2: Remove all tags for the list shown to the user. +
+Pros: Completely removes the specified tag from the whole addressbook +
+Cons: User may want to remove only from list shown instead of the whole list.
 
 == Documentation
 
@@ -870,6 +987,42 @@ Use case ends.
 3.  User closes the user guide
 +
 Use case ends.
+
+[discrete]
+=== Use case: Remove tags
+
+*MSS*
+
+1.  User requests a list of name
+2.  AddressBook shows list of persons.
+3.  User requests to delete a tag from a person
+4.  AddressBook confirms the action
+5.  User confirms
+6.  AddressBook deletes tag from specified person.
++
+Use case ends.
+
+*Extention*
+
+[none]
+* 2a. The list is empty.
++
+Use case ends.
+
+* 3a. TAG given is not found in the TagList.
+[none]
+** 3a1. AddressBook shows an error message.
++
+Use case resumes at step 2.
+
+* 5a. User cancels his action.
++
+Use case resumes at step 2.
+
+
+
+
+
 
 [discrete]
 === Use case: Sort list
