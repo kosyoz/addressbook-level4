@@ -74,11 +74,20 @@ include::../DeveloperGuide.adoc[tag=findtag]
 include::../UserGuide.adoc[tag=theme]
 
 ---
+
 ==== Justification
 
 `theme` function is needed for the user to customize the GUI and personalize Rubrika according to the preference of the user.
 
 `theme` function allow user to choose from different themes depending on the user's current emotional status and improve their user experience.
+
+==== Implementation
+
+---
+
+include::../DeveloperGuide.adoc[tag=theme]
+
+---
 
 === Enhancement Proposed: Add command `Event`
 

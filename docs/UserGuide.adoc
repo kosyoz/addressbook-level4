@@ -329,8 +329,8 @@ Examples:
 
 * `theme` `DarkTheme` +
 Change the theme of the Rubrika to DarkTheme.
-
-// end::theme[]
+****
+//end::theme[]
 
 // tag::importexport[]
 
